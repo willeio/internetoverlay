@@ -1,0 +1,2 @@
+#define IO_VER_MAIN @IO_VER_MAIN@
+#define IO_VER_SUB  @IO_VER_SUB@
