@@ -11,6 +11,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <string.h>
 
 
 void handle_client_connection(int cli)
@@ -22,73 +23,77 @@ void handle_client_connection(int cli)
 
   if (check_magic(&prot, "RN") == 0)
   {
-    // TODO: copy list, otherwise clients can hang this process and the master cannot spread the nodes any further..
+    // node info must be copied here, as contacted clients could hang (by locking the shared mutex) and stop the server from working )=UDFU=)D=?=????????????????????????
+
+    list_t *temp_list = list_create();
 
     pthread_mutex_lock(&mutex_shared);
-    int sent = 0;
-    for (int i = 0; i < MAX_NODES; i++) // TODO: safe types !
+
+    list_entry_t *e = nodes_list->e;
+
+    while (e)
     {
-      if (nodes_list[i])
-      {
-        if (send_node(cli, nodes_list[i]) < 0)
-        {
-          pthread_mutex_unlock(&mutex_shared);
-          return;
-        }
-        else
-        {
-          sent++;
-        }
-      }
+      struct node *temp_node = (struct node *)malloc(sizeof(struct node));
+      memset(temp_node, 0, sizeof(temp_node));
+      memcpy(temp_node, e->val, sizeof(struct node));
+      list_append(temp_list, temp_node);
+
+      e = e->next;
     }
-    printf("client: sent %d nodes\n", sent);
+
     pthread_mutex_unlock(&mutex_shared);
+
+
+    int sent = 0;
+
+    e = temp_list->e; // get the beginning of our own, new, unthreaded temp node list
+
+    while (e)
+    {
+      if (send_node(cli, e->val) == 0)
+        sent++;
+
+      free(e->val); // free all used temporary nodes!
+
+      e = e->next;
+    }
+
+    free(temp_list); // done, finally free the temp node list
+
+
+
+
+    printf("handle_client_connection: sent %d nodes\n", sent);
 
     return;
   }
 
+
+
+
   struct node_announce na;
   if (get_node_announce(cli, &prot, &na) == 0)
   {
-    int list_pos = -1;
-
-    // TODO: also copy, or use a better list model
-
-    pthread_mutex_lock(&mutex_shared);
-    for (int i = 0; i < MAX_NODES; i++)
-    {
-      if (nodes_list[i] == 0)
-      {
-        list_pos = i;
-        break;
-      }
-    }
-
-    if (list_pos == -1)
-    {
-      printf("list full!\n");
-      return;
-    }
-
-    // now fill the new entry
+    // fill the new entry
     // get ip from connected socket
     struct sockaddr_in addr;
     socklen_t addr_size = sizeof(struct sockaddr_in);
 
     if (getpeername(cli, (struct sockaddr *)&addr, &addr_size) < 0)
     {
-      printf("cannot get ip for node announcement - cannot add node to list!\n");
+      printf("handle_client_connection: node announce: cannot get ip for node announcement - cannot add node to list!\n");
       return;
     }
 
+    struct node *new_node = (struct node*)malloc(sizeof(struct node));
 
-    nodes_list[list_pos] = (struct node*)malloc(sizeof(struct node));
+    new_node->ip = addr.sin_addr.s_addr;
+    new_node->node_port = na.node_port;
+    new_node->client_port = na.client_port;
 
-    nodes_list[list_pos]->ip = addr.sin_addr.s_addr;
-    nodes_list[list_pos]->node_port = na.node_port;
-    nodes_list[list_pos]->client_port = na.client_port;
-
-    printf("added %s (%d, %d) as #%d\n", inet_ntoa(addr.sin_addr), na.node_port, na.client_port, list_pos);
+    pthread_mutex_lock(&mutex_shared);
+    list_append(nodes_list, new_node); // FIXME: scramble list!! sleep for some msecs!
+    printf("handle_client_connection: added %s (%d, %d)\n", inet_ntoa(addr.sin_addr), na.node_port, na.client_port);
     pthread_mutex_unlock(&mutex_shared);
 
     return;
@@ -98,7 +103,7 @@ void handle_client_connection(int cli)
 }
 
 
-void* thread_client_connection(void* arg /* socket fd */)
+void* _thread_client_connection(void* arg /* socket fd */)
 {
   int cli = *(int*)arg;
 

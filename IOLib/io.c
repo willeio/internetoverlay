@@ -10,10 +10,88 @@
 #include <time.h>
 #include <assert.h>
 #include <signal.h> // raise
+#include <inttypes.h>
+#include <pthread.h> // mutex for inet_ntoa
+#include <arpa/inet.h> // inet_ntoa
+#include <fcntl.h>
+#include <sys/select.h>
+
+
+int set_nonblock(int sock)
+{
+  if (fcntl(sock, F_SETFL, O_NONBLOCK) != 0)
+  {
+    puts("set_nonblock: unable to set socket as non-blocking");
+    return -1;
+  }
+
+   return 0; // success
+}
+
+
+int wait_socket_ready(int sock, fd_set *read_fds, fd_set *write_fds)
+{
+  struct timeval tv;
+  tv.tv_sec = 1;
+  tv.tv_usec = 0; //1 * 1000 * 1000; // TODO: 250 msecs (is currently 1sec)
+
+  select(sock + 1, read_fds, write_fds, 0, &tv);
+
+  int so_error;
+  socklen_t len = sizeof(so_error);
+  getsockopt(sock, SOL_SOCKET, SO_ERROR, &so_error, &len);
+
+  if (so_error != 0)
+  {
+    printf("wait_socket_ready: %s\n", strerror(so_error) /* FIXME: threadsafe ! */);
+    return -1;
+  }
+
+  return 0; // success
+}
+
+
+int wait_socket_read_ready(int sock)
+{
+  fd_set read_fds;
+  FD_ZERO(&read_fds);
+  FD_SET(sock, &read_fds);
+
+  return wait_socket_ready(sock, &read_fds, 0);
+}
+
+
+int accept_connection(int sock)
+{
+  int cli = accept(sock, 0, 0);
+
+  if (cli < 0)
+  {
+    //puts("accept_connection: invalid client");
+    return -1;
+  }
+
+  if (set_nonblock(sock) != 0)
+  {
+    close(sock);
+    return -2;
+  }
+
+//  if (wait_socket_read_ready(cli) != 0)
+//  {
+//    close(sock);
+//    return -3;
+//  }
+
+  return cli;
+}
 
 
 int receive(int sock, uint8_t *buf, int size)
 {
+  if (wait_socket_read_ready(sock) != 0)
+    return -4;
+
   ssize_t recvd = read(sock, buf, size); // TODO: write in buffer, on success copy buf to prot
 
   //if (size == 256)
@@ -43,10 +121,23 @@ int receive(int sock, uint8_t *buf, int size)
 }
 
 
+int wait_socket_write_ready(int sock)
+{
+  fd_set write_fds;
+  FD_ZERO(&write_fds);
+  FD_SET(sock, &write_fds);
+
+  return wait_socket_ready(sock, 0, &write_fds);
+}
+
+
 int out(int sock, uint8_t* buf, int size)
 {
   //if (size == 256)
     //printf("out : '%s'\n", buf);
+
+  if (wait_socket_write_ready(sock) != 0)
+    return -4;
 
   ssize_t sent = write(sock, buf, size);
 
@@ -125,6 +216,35 @@ int get_protocol(int sock, union protocol* prot)//, const char* magic /* feed wi
 }
 
 
+int get_random_number(void* ptr, size_t size)
+{
+  int result = -1;
+  FILE *f = fopen("/dev/random", "r");
+
+  if (!f)
+  {
+    puts("get_random_number: cannot open /dev/random !");
+  }
+  else
+  {
+    size_t fread_result = fread(ptr, size, 1, f);
+    if (fread_result != 1)
+    {
+      puts("[SECURITY FAILURE!] get_random_number: could not read from /dev/random - abort!");
+      abort();
+    }
+    else
+    {
+      result = 0; // success
+    }
+  }
+
+  fclose(f);
+
+  return result;
+}
+
+
 struct node* get_random_node(list_t* nodes_list)
 {
   if (nodes_list->count < 2)
@@ -133,17 +253,19 @@ struct node* get_random_node(list_t* nodes_list)
     return 0;
   }
 
-  int x = rand();
-//printf("grn: rand() = %d  |  (nodes_list->count) = %d \n", x, (nodes_list->count));
+  uint16_t random = 0;
+  if (get_random_number(&random, sizeof(random)) < 0)
+    return 0;
 
-  int pos = x % (nodes_list->count);
+  random = random % list_count(nodes_list);
 
-//printf("get_random_node: random numer = %d\n", pos);
+  printf("get_random_node: random number was %"PRIu16"\n", random);
 
 
-  list_entry_t* e = 0;
+  list_entry_t* e = nodes_list->e;
 
-  for (uint16_t i = 0; i < nodes_list->count; i++)
+  uint16_t i = 0;
+  for (; i < (nodes_list->count - 1) && i < random; i++)
   {
     e = e->next;
   }
@@ -162,6 +284,12 @@ struct node* get_random_node(list_t* nodes_list)
     return 0;
   }
 
+  char *ip = (char *)malloc(100); // FIXME: size? read man!
+  memset(ip, 0, 100);
+  get_ip_as_string(n->ip, ip);
+  printf("get_random_node: selected node #%"PRIu16" (%"PRIu16"): %s:%"PRIu16"\n", random, i, ip, n->node_port);
+  free(ip);
+
   return n;
 }
 
@@ -177,33 +305,57 @@ int get_node_list(list_t* nodes) // returns count of nodes in the list
     return -1;
 
   if (send_request(sock, "RN") < 0)
+  {
+    close(sock);
     return -2;
+  }
 
-  list_free(nodes); // delete ols list if exists
+
+  list_entry_t *e = nodes->e;
+
+  while (e)
+  {
+    free(e->val);
+    e = e->next;
+  }
+
+  list_clear(nodes);
+
 
   // receive nodes
+  uint16_t count = 0;
   while (1) // get nodes until the master disconnects (which means that we have received all nodes)  TODO: run var !
   {
-    if (!list_can_add(nodes))
-      return list_count(nodes);
+    if (list_can_add(nodes) != 0)
+    {
+      count = list_count(nodes);
+      break;
+    }
 
     union protocol prot;
 
-    if (get_protocol(sock, &prot) < 0)
-      return nodes->count; // the master closes the connection if there are no nodes left - so this is not always an error
+    if (get_protocol(sock, &prot) < 0) // the master closes the connection if there are no nodes left - so this is not always an error
+    {
+      count = list_count(nodes);
+      break;
+    }
 
     struct node nd;
     if (get_node(sock, &prot, &nd) < 0)
-      return nodes->count;
+    {
+      count = list_count(nodes);
+      break;
+    }
 
-    struct node* n = (struct node*)malloc(sizeof(struct node*));
+    struct node* n = (struct node*)malloc(sizeof(struct node));
     memcpy(n, &nd, sizeof(nd));
     //printf("received new node!\n");
 
     list_append(nodes, n);
   }
 
-  return list_count(nodes);
+  close(sock);
+  return count;
 }
 
 
@@ -245,7 +397,12 @@ int _open_connection(ipv4 ip, uint16_t port)
   
   if (io_sock_connect(sock, ip, port) < 0)
   {
-    printf("open: connect to %s failed\n", "TODO: !!!");
+    char *ip_str = (char *)malloc(100); // FIXME: size? read man!
+    memset(ip_str, 0, 100);
+    get_ip_as_string(ip, ip_str);
+    printf("open: connect to %s failed\n", ip_str);
+    free(ip_str);
+
     return -2;
   }
 
@@ -445,6 +602,10 @@ int get_node(int sock, union protocol* prot_in, struct node* node_out)
 
   *node_out = nd.data;
 
+  struct in_addr temp_adr;
+  temp_adr.s_addr = nd.data.ip;
+  printf("get_node: received node %s (%d,%d)\n", inet_ntoa(temp_adr), nd.data.node_port, nd.data.client_port);
+
   return 0;
 }
 
@@ -462,6 +623,10 @@ int send_node(int sock, struct node* node_in)
   if (out(sock, node.buffer, size) < 0)
     return -1;
 
+  struct in_addr temp_adr;
+  temp_adr.s_addr = node.data.ip;
+  printf("send_node: sent node %s (%d,%d)\n", inet_ntoa(temp_adr), node.data.node_port, node.data.client_port);
+
   return 0;
 }
 
@@ -477,4 +642,27 @@ void log_not_supported(union protocol* prot_in)
   printf("received message %c%c not supported!\n",
          prot_in->data.magic[0],
          prot_in->data.magic[1]);
+}
+
+
+pthread_mutex_t mutex_inet_ntoa;
+void get_ip_as_string(ipv4 ip, char *str)
+{
+  pthread_mutex_lock(&mutex_inet_ntoa);
+
+  struct in_addr temp;
+  temp.s_addr = ip;
+
+  char *ip_str = inet_ntoa(temp);
+  if (strlen(ip_str) >= (100-2))
+    return;
+  strcpy(str, ip_str);
+
+  pthread_mutex_unlock(&mutex_inet_ntoa);
+}
+
+
+void init()
+{
+  pthread_mutex_init(&mutex_inet_ntoa, 0);
 }

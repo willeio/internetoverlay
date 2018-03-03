@@ -30,4 +30,3 @@ RSA* rsa_private_init(char* key)
 
   return rsa;
 }
-

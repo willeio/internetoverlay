@@ -1,8 +1,8 @@
 cmake_minimum_required (VERSION 2.6)
-project (io-project.org C)
+project (InternetOverlay C)
 
 set (IO_VER_MAIN 0)
-set (IO_VER_SUB  18)
+set (IO_VER_SUB  19)
 
 configure_file (
   "${PROJECT_SOURCE_DIR}/cfg.h.in"

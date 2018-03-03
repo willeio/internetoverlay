@@ -23,6 +23,15 @@
 #include <time.h>
 #include <pthread.h>
 #include <signal.h>
+#include <inttypes.h>
+
+
+
+
+//#error Moeglichst viel auf thread_mgr umstellen! ausserdem: wo kommt der thread_mgr im IONode her? ist nirgends implementiert
+
+
+
 
 
 int announce(uint16_t client_port, uint16_t node_port)
@@ -45,45 +54,52 @@ int announce(uint16_t client_port, uint16_t node_port)
 
 int main(int argc, char *argv[])
 {
+  (void)argc;
+  (void)argv;
+
   srand(time(NULL)); // TODO: use safe random numbers in whole project !
   signal(SIGPIPE, SIG_IGN); // ignore sigpipes (because broken pipes do not harm this program's execution)
 
   printf("<IONode>\n\n");
 
+  init();
+
+  FILE *f = fopen("/dev/random", "r");
+
+  if (!f)
+  {
+    puts("cannot open /dev/random for random ports!");
+    return -1234;
+  }
+
   uint16_t node_port = 0;
   uint16_t client_port = 0;
 
-  if (argc == 3) // all ports given, read them
+  do
   {
-    printf("node_port: %s\n", argv[1]);
+    fread(&node_port, sizeof(node_port), 1, f);
+  } while (node_port < 1024);
 
-    if (!sscanf(argv[1], "%hu", &node_port) || !node_port)
-    {
-      printf("invalid node_port\n");
-      return -88;
-    }
+  printf("node_port: %"PRIu16"\n", node_port);
 
-    printf("client_port: %s\n", argv[2]);
-
-    if (!sscanf(argv[2], "%hu", &client_port) || !client_port)
-    {
-      printf("invalid client_port\n");
-      return -77;
-    }
-  }
-  else
+  do
   {
-    printf("usage: %s <node port> <client port>\n", argv[0]);
-    return -99;
-  }
+    fread(&client_port, sizeof(client_port), 1, f);
+  } while (client_port == node_port || client_port < 1024);
+
+  printf("client_port: %"PRIu16"\n", client_port);
+
+  fclose(f);
 
 
 
-  nodes_list = list_create();
-  //list_set_max_entries(nodes_list, );   max of the maxes ^^
+  client_blob_list = list_create();
+  list_set_max_entries(client_blob_list, 128);
+
 
   node_blob_list = list_create();
   list_set_max_entries(node_blob_list, 128);
+
 
   client_list = list_create();
   list_set_max_entries(client_list, 128);
@@ -109,7 +125,8 @@ int main(int argc, char *argv[])
 //  nodes_list.n = 0;
 
 
-  printf("getting node list ..\n");
+  printf("getting node list ..\n"); // initial list
+  nodes_list = list_create();
   int nodes_count = get_node_list(nodes_list);
   if (nodes_count < 0)
   {

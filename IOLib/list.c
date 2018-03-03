@@ -62,6 +62,9 @@ void* list_last(list_t* l)
 {
   list_entry_t* e = l->e;
 
+  if (!e)
+    return 0;
+
   while (e->next)
   {
     e = e->next;
@@ -75,7 +78,13 @@ void* list_take_last(list_t* l)
 {
   list_entry_t* e = list_last(l);
 
+  if (!e)
+    return 0;
+
   void* val = e->val;
+
+  if (!val)
+    return 0;
 
   if (_list_remove(l, e) < 0)
     return 0; // error, not found!
@@ -102,13 +111,16 @@ void list_free(list_t* l)
 
 int list_can_add(list_t* l) // BOOL!!
 {
-  return (l->count < l->max);
+  if (l->count < l->max)
+    return 0;
+
+  return -1;
 }
 
 
 int list_add(list_t* l, void* val) // quatrillion times faster, because it does not have to find the last entry, but adds it as the first entry
 {
-  if (!list_can_add(l))
+  if (list_can_add(l) != 0)
     return -1; // list full
 
   list_entry_t *e = (list_entry_t*)malloc(sizeof(list_entry_t));
@@ -125,7 +137,7 @@ int list_add(list_t* l, void* val) // quatrillion times faster, because it does 
 
 int list_append(list_t* l, void* val)
 {
-  if (!list_can_add(l))
+  if (list_can_add(l) != 0)
     return -1; // list full
 
   list_entry_t *e = (list_entry_t*)malloc(sizeof(list_entry_t));

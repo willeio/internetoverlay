@@ -1,4 +1,5 @@
 #include "net.h"
+#include <IOLib/io.h>
 
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -8,7 +9,12 @@
 
 int io_socket()
 {
-  return socket(AF_INET, SOCK_STREAM, 0);
+  int sock = socket(AF_INET, SOCK_STREAM, 0);
+
+  if (set_nonblock(sock) != 0)
+    return -1;
+
+  return sock;
 }
 
 
@@ -48,8 +54,11 @@ int io_sock_connect(int sock, ipv4 ip, uint16_t port)
   serv_addr.sin_port = htons(port);
   serv_addr.sin_addr.s_addr = ip;
   
-  if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
-    return -1;
+  /*if (*/connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)); // IN PROGRESS !< 0)
+    //return -1;
+
+  if (wait_socket_read_ready(sock) != 0)
+    return -2;
   
   return 0;
 }

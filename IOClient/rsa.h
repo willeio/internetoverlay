@@ -7,8 +7,7 @@
 
 
 #ifdef __cplusplus
-extern "C"
-{
+extern "C" {
 #endif
 
 RSA* rsa_public_init(char* key);

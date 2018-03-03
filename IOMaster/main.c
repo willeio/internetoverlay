@@ -4,6 +4,7 @@
 
 #include <IOLib/thread.h>
 #include <IOLib/io.h>
+//#include <IOLib/client.h>
 // TODO:  #include "cfg.h"
 
 #include <stdlib.h>
@@ -22,10 +23,11 @@
 
 
 
-
-
 int main(int argc, char **argv)
 {
+  (void)argc;
+  (void)argv;
+
   printf("<IOMaster>\n\n");
 
 #ifdef MinGW
@@ -41,10 +43,11 @@ int main(int argc, char **argv)
 
   run = 1;
 
-  for (int i = 0; i < MAX_NODES; i++)
-    nodes_list[i] = 0;
-
   pthread_mutex_init(&mutex_shared, 0);
+
+  nodes_list = list_create();
+  list_set_max_entries(nodes_list, 1024);
+
 
 
 
@@ -58,37 +61,32 @@ int main(int argc, char **argv)
 
 
 
-  threads_init();
-  //threads_set_count();  <= TODO: arg!
-
-
-
-
-//  printf("waiting for connections..\n");
+  thread_mgr_t *thread_mgr = threads_create(4, 128);
 
   while (run)
   {
-    usleep(1);
+    /*u*/sleep(1);
 
-    threads_wait_free();
+    threads_wait_free(thread_mgr);
 
-    int cli = accept(svr, 0, 0);
+    int cli = accept_connection(svr);
 
     if (cli < 0)
     {
-//      printf("client: unconnected client\n");
+      //puts("client: unconnected client");
       continue;
     }
 
     int* cli_ptr = (int*)malloc(sizeof(int));
     *cli_ptr = cli;
-    threads_add_work(thread_client_connection, cli_ptr);
+    threads_add_work(thread_mgr, _thread_client_connection, cli_ptr);
+    //puts("work added");
   }
 
 
   // app term
-  threads_free();
-  pthread_join(watcher_thread, 0);
+  threads_free(thread_mgr);
+  //pthread_join(watcher_thread, 0);
 
   printf("normal exit!\n");
 

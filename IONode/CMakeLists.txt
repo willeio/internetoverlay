@@ -2,7 +2,7 @@ include_directories ("{PROJECT_BUILD_DIR}")
 
 set (src
   shared.h
-  shared.c
+  #shared.c
   client.h
   client.c
   watcher.h

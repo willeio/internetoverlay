@@ -5,6 +5,8 @@ set (src
   thread.c
   list.h
   list.c
+  #client.h
+  #client.c
 )
 
 add_library (IO SHARED ${src})

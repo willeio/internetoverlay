@@ -19,7 +19,12 @@ void handle_node_connection(int sock)
 
   struct node_blob nb;
   if (get_node_blob(sock, &prot, &nb) < 0)
+  {
+    printf("handle_node_connection: received non-node-blob %c%c on node port!\n", prot.data.magic[0], prot.data.magic[1]);
     return;
+  }
+
+  puts("handle node");
 
 //  printf("node: received text was: %s\n", nb.blob);
 //  printf("node: received node blob with %d hops left\n", nb.hops);
@@ -35,8 +40,12 @@ void handle_node_connection(int sock)
   struct node_blob* nb_ptr = (struct node_blob*)malloc(sizeof(struct node_blob));
   memcpy(nb_ptr, &nb, sizeof(struct node_blob));
 
+  struct client_blob cb_ptr = (struct client_blob *)malloc(sizeof(struct client_blob));
+  memcpy(cb_ptr.blob, nb.blob, 256);
+
   pthread_mutex_lock(&mutex_shared);
   list_append(node_blob_list, nb_ptr);
+  list_append(client_blob_list, cb_ptr);
   pthread_mutex_unlock(&mutex_shared);
 }
 

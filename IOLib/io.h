@@ -13,15 +13,14 @@
 #define DEV
 
 #ifdef DEV
-  #define MASTER_IP "127.0.0.1"
+  #define MASTER_IP "192.168.133.248"
 #else
   #define MASTER_IP "138.201.184.241"
 #endif
 
 
 #ifdef __cplusplus
-extern "C"
-{
+extern "C" {
 #endif
 
 
@@ -187,7 +186,7 @@ int send_node_blob(int sock, struct node_blob* nb_in);
 
 
 
-
+void init();
 int receive(int sock, uint8_t *buf, int size);
 int out(int sock, uint8_t* buf, int size);
 struct node* get_random_node(list_t *nodes_list);
@@ -200,6 +199,11 @@ int open_connection_node(struct node* node);
 int check_magic(union protocol* prot_in, const char* magic /* feed magic strlen == 2! */);
 int send_request(int sock, const char* magic);
 void log_not_supported(union protocol* prot_in);
+int get_random_number(void* ptr, size_t size);
+void get_ip_as_string(ipv4 ip, char *str);
+int accept_connection(int sock);
+int set_nonblock(int sock);
+int wait_socket_read_ready(int sock);
 
 
 

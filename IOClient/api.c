@@ -16,6 +16,7 @@ list_t* nodes_list;
 
 void io_init()
 {
+  init();
   nodes_list = list_create();
 }
 

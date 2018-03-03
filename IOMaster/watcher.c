@@ -5,14 +5,6 @@
 #include <stdlib.h>
 
 
-void delete_node(int i)
-{
-  free(nodes_list[i]);
-  nodes_list[i] = 0;
-  printf("watcher: deleted #%d\n", i);
-}
-
-
 void* thread_watcher(void* arg) // heartbeat for listed nodes
 {
   (void)arg;
@@ -21,51 +13,45 @@ void* thread_watcher(void* arg) // heartbeat for listed nodes
 
   while (run)
   {
-    sleep(35); // check every x secs
+    sleep(1); // check every x secs
 
-//    printf("watcher: checking...\n");
+    // NOTE: not the best solution for production, but for the quick impl that's perfectly okay
 
     pthread_mutex_lock(&mutex_shared);
-    // TODO: copy list here also..
+    struct node *n = list_take_last(nodes_list); // client has to prove itself before getting put back into the list
 
-    for (int i = 0; i < MAX_NODES; i++)
+    if (n)
     {
-      struct node* n = nodes_list[i];
-
-      if (!n)
-        continue;
-
-//      printf("> trying...\n");
+      int deleted = 0;
 
       if (n->client_port) // only check if client port > 0 (port is open)
       {
         int sock = open_connection_client(n);
 
-        if (sock < 0)
-        {
-          delete_node(i);
-          continue;
-        }
-
-        close(sock);
+        if (sock > 0) // success?
+          close(sock);
+        else
+          deleted = 1;
       }
 
-      if (n->node_port) // only check if noe port > 0
+      if (deleted == 0 && n->node_port) // only check if noe port > 0  AND IF NODE NOT DELETED ALREADY
       {
         int sock = open_connection_node(n);
 
-        if (sock < 0)
-        {
-          delete_node(i);
-          continue;
-        }
-
-        close(sock);
+        if (sock > 0) // success?
+          close(sock);
+        else
+          deleted = 1;
       }
-    }
+
+      if (deleted == 0)
+        list_add(nodes_list, n); // put node back if it's not marked for deletion (but as first entry - take last, add first)
+
+    } // if (n)
+
     pthread_mutex_unlock(&mutex_shared);
-//    printf("done!\n");
-  }
+
+  } // while (run)
 
   return 0;
 }
