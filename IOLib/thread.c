@@ -41,6 +41,7 @@ void* _threads_work(void* arg)
     pthread_cond_signal(&mgr->cond_wait_free); // as there is now space in the work queue again, send signal for waiting threads
     pthread_mutex_unlock(&mgr->mutex_thread);
     (*work->f)(work->arg); // execute work
+    free(work); // done, delete work
 
     //PRINT_MSG("work done!");
   }

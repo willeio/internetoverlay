@@ -21,25 +21,26 @@ void io_init()
 }
 
 
-struct IO* new_IO()
+IO_t* new_IO()
 {
-  struct IO* io = (struct IO*)malloc(sizeof(struct IO));
+  IO_t* io = (IO_t*)malloc(sizeof(IO_t));
 
   io->sock = -1;
   io->prv_key = 0;
+  io->attempted_connections = 0;
 
   return io;
 }
 
 
-void free_IO(struct IO* io)
+void free_IO(IO_t* io)
 {
   (void)io;
   // TODO: anything with: io->prv_key
 }
 
 
-int io_set_prv_key(struct IO* io, char* prv_key)
+int io_set_prv_key(IO_t* io, char* prv_key)
 {
   RSA* prv = rsa_private_init(prv_key);
 
@@ -50,9 +51,9 @@ int io_set_prv_key(struct IO* io, char* prv_key)
 }
 
 
-int io_connect(struct IO* io)
+int io_connect(IO_t* io)
 {
-  srand(time(0));
+  //srand(time(0));
 
   int node_count = get_node_list(nodes_list);
 
@@ -72,7 +73,7 @@ int io_connect(struct IO* io)
 }
 
 
-int io_out(struct IO* io, char *recv_pub_key, void* buffer, uint16_t size)
+int io_out(IO_t* io, char *recv_pub_key, void* buffer, uint16_t size)
 {
   if (size > 256) // TODO: manage to send many packages if > 256
     return -4;
@@ -123,7 +124,7 @@ int io_out(struct IO* io, char *recv_pub_key, void* buffer, uint16_t size)
 }
 
 
-int io_get(struct IO* io, struct client_blob *cb_out)
+int io_get(IO_t* io, struct client_blob *cb_out)
 {
   if (!io->prv_key)
   {

@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>620</width>
+    <height>404</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Message Viewer</string>
+  </property>
+  <widget class="QWidget" name="centralWidget">
+   <layout class="QVBoxLayout" name="verticalLayout">
+    <item>
+     <widget class="QLabel" name="label">
+      <property name="text">
+       <string>Receiver's Public Address:</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QPlainTextEdit" name="recvr">
+      <property name="plainText">
+       <string>-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAzEWkZs7v2vg5lk7BnbMl
+7/Y5zh1N4lsfdoCfs3CXzI578mzvWCM6Wwi8Gm5zgTmff2W4cxsZg5a03GztcjJW
+e6U5INegUl8N0Q/ck+ulQIFqi47Q/gOPvI38qF/evPHBhSIEoVSYv9V3hsZT6p5K
+PGBkhaWNzYLrXgSS5AhTLDTMk7w7SPSOLNgcsUR3K3wd2DUMjvC+olCz/IMMCuTS
+Xnc7RsR2efQ0p3XDVior4saMjw9nqL8LPqT6IcHYmZCNhdWWz0YS+IMPIzbJApVm
+g/kPsiaa0ys508gNHLLGuiCKIOatAzXdm+ZI+FIgUrO7cSKKNyT6zSi1CufGTz4f
+KQIDAQAB
+-----END PUBLIC KEY-----</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QTableWidget" name="messages">
+      <property name="horizontalScrollBarPolicy">
+       <enum>Qt::ScrollBarAlwaysOff</enum>
+      </property>
+      <property name="editTriggers">
+       <set>QAbstractItemView::NoEditTriggers</set>
+      </property>
+      <property name="showDropIndicator" stdset="0">
+       <bool>false</bool>
+      </property>
+      <property name="alternatingRowColors">
+       <bool>true</bool>
+      </property>
+      <property name="selectionMode">
+       <enum>QAbstractItemView::NoSelection</enum>
+      </property>
+      <property name="selectionBehavior">
+       <enum>QAbstractItemView::SelectRows</enum>
+      </property>
+      <property name="showGrid">
+       <bool>false</bool>
+      </property>
+      <property name="columnCount">
+       <number>1</number>
+      </property>
+      <attribute name="horizontalHeaderVisible">
+       <bool>false</bool>
+      </attribute>
+      <attribute name="horizontalHeaderStretchLastSection">
+       <bool>true</bool>
+      </attribute>
+      <attribute name="verticalHeaderVisible">
+       <bool>false</bool>
+      </attribute>
+      <attribute name="verticalHeaderCascadingSectionResizes">
+       <bool>true</bool>
+      </attribute>
+      <column/>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLineEdit" name="lineEdit">
+      <property name="maxLength">
+       <number>128</number>
+      </property>
+      <property name="placeholderText">
+       <string>Enter your message here and press enter! (max 128 chars)</string>
+      </property>
+      <property name="clearButtonEnabled">
+       <bool>false</bool>
+      </property>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+ </widget>
+ <layoutdefault spacing="6" margin="11"/>
+ <tabstops>
+  <tabstop>lineEdit</tabstop>
+  <tabstop>messages</tabstop>
+ </tabstops>
+ <resources/>
+ <connections/>
+</ui>

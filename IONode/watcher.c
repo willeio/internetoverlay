@@ -28,101 +28,113 @@ void __put_back_mutexed(list_t *list, void *value)
 }
 
 
-void *_thread_client_blob_processing(void *arg)
+void _thread_client_blob_processing()
 {
   // TODO: connect to another node or dismiss for security reasons ?
 
-  (void*)arg;
+  pthread_mutex_lock(&mutex_shared);
+  int client_blob_count = list_count(client_blob_list);
+  pthread_mutex_unlock(&mutex_shared);
+
+  if (client_blob_count < 1)
+    return;
+
 
   struct client_blob *cb = __take_last_mutexed(client_blob_list);
 
-  if (cb)
+
+
+
+  pthread_mutex_lock(&mutex_shared);
+  int client_count = list_count(client_list);
+  pthread_mutex_unlock(&mutex_shared);
+
+  if (client_count < 1)
+    return;
+
+  // take client, he has to 'prove' itself before it can get back into the list, by reading our bytes without an error
+  int *_client_sock = (int *)__take_last_mutexed(client_list);
+  //puts("_thread_client_blob_processing: took client from list");
+
+  if (!_client_sock)
+    return;
+
+
+  int client_sock = *_client_sock;
+  free(_client_sock);
+
+
+
+
+
+  //printf("watcher: sending nb as cb to %d\n" /*- with text: %s\n"*/, client_sock);//, cb.blob);
+
+
+
+  if (send_client_blob(client_sock, cb) != 0) // client failed
   {
-    pthread_mutex_lock(&mutex_shared);
-    list_entry_t * e = client_list->e;
+    //puts("_thread_client_blob_processing: send_client_blob failed - deleting client");
+    close(client_sock); // close socket
+  }
+  else
+  {
+    int *putback_client = (int *)malloc(sizeof(int)); // put client back into list, successfully sent
+    *putback_client = client_sock;
 
-    while (e)
-    {
-      int *_client_sock = (int*)e->val;
-      int client_sock = *_client_sock;
-
-      printf("watcher: sending nb as cb to %d\n" /*- with text: %s\n"*/, client_sock);//, cb.blob);
-
-#error hier bin ich stehen geblieben
-
-      if (send_client_blob(client_sock, cb) == 0)
-      { // success
-        pthread_mutex_unlock(&mutex_shared);
-        free(cb);
-      }
-      else
-      { // failed
-        // delete client as it is defective !
-        close(client_sock);
-        _list_remove(client_list, e);
-        free(_client_sock);
-        e = client_list->e; // go back to the start (sec)!
-        continue;
-        //printf("watcher: connection %d closed\n", client_sock);
-      }
-
-      e = e->next;
-    } // while (e)
-
-    pthread_mutex_unlock(&mutex_shared);
+    __put_back_mutexed(client_list, putback_client);
+    //puts("_thread_client_blob_processing: put client back into list");
   }
 
-  __put_back_mutexed(client_blob_list, cb);
-  puts("watcher: unable to send cb to this client!");
-  return 0;
+
+
+  return;
 }
 
 
-void *_thread_node_blob_processing(void *arg)
+void _thread_node_blob_processing()
 {
   // TODO: connect to another node or dismiss for security reasons ?
   // TODO: redirect to more than just one node
-  (void*)arg;
+
+  pthread_mutex_lock(&mutex_shared);
+  struct node *random_node = get_random_node(nodes_list);
+
+  if (!random_node)
+  {
+    pthread_mutex_unlock(&mutex_shared);
+    return;
+  }
+
+  // copy the node struct, so that the mutex can be unlocked again
+  struct node copy;
+  memcpy(&copy, random_node, sizeof(struct node));
+
+  pthread_mutex_unlock(&mutex_shared);
+
 
   struct node_blob *nb = __take_last_mutexed(node_blob_list);
 
-  if (nb)
+  if (!nb)
+    return;
+
+
+  int node_sock = open_connection_node(&copy);
+
+  if (node_sock > 0)
   {
-    pthread_mutex_lock(&mutex_shared);
-    struct node *random_node = get_random_node(nodes_list);
+    if (send_node_blob(node_sock, nb) == 0)
+      free(nb); // done!
+    else
+      __put_back_mutexed(node_blob_list, nb); // failed to send, put nb back!
 
-    if (random_node)
-    {
-      struct node *copy = (struct node *)malloc(sizeof(struct node));
-      memcpy(copy, random_node, sizeof(struct node));
-      random_node = copy;
-
-      pthread_mutex_unlock(&mutex_shared);
-
-      int node_sock = open_connection_node(random_node);
-
-      if (node_sock)
-      {
-        if (send_node_blob(node_sock, nb) == 0)
-        {
-          free(nb); // done!
-          close(node_sock);
-          return 0;
-        }
-
-        close(node_sock);
-      }
-    }
-    else // if (random_node)
-    {
-      pthread_mutex_unlock(&mutex_shared);
-    }
+    close(node_sock);
+  }
+  else
+  {
+    __put_back_mutexed(node_blob_list, nb); // failed to open connection, put nb back!
   }
 
-  __put_back_mutexed(node_blob_list, nb);
-  printf("watcher: unable to send nb to random node!\n");
-
-  return 0;
+  return;
 }
 
 
@@ -130,20 +142,13 @@ void* thread_watcher(void* arg) // send client blobs to other nodes
 {
   (void)arg;
 
-  thread_mgr_t *mgr = threads_create(32, 128);
-
   while (run)
   {
-    usleep(100);
+    usleep(100); // 100µs
 
-    if (list_count(client_blob_list) > 0)
-      threads_add_work(mgr, _thread_client_blob_processing, 0 /* no arg needed */);
-
-    if (list_count(node_blob_list) > 0)
-      threads_add_work(mgr, _thread_node_blob_processing, 0 /* no arg needed */);
+    _thread_client_blob_processing();
+    _thread_node_blob_processing();
   }
-
-  threads_free(mgr);
 
   return 0;
 }

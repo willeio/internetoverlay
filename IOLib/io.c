@@ -29,7 +29,7 @@ int set_nonblock(int sock)
 }
 
 
-int wait_socket_ready(int sock, fd_set *read_fds, fd_set *write_fds)
+int _wait_socket_ready(int sock, fd_set *read_fds, fd_set *write_fds)
 {
   struct timeval tv;
   tv.tv_sec = 1;
@@ -43,7 +43,7 @@ int wait_socket_ready(int sock, fd_set *read_fds, fd_set *write_fds)
 
   if (so_error != 0)
   {
-    printf("wait_socket_ready: %s\n", strerror(so_error) /* FIXME: threadsafe ! */);
+    //printf("wait_socket_ready: %s\n", strerror(so_error) /* FIXME: threadsafe ! */);
     return -1;
   }
 
@@ -57,7 +57,7 @@ int wait_socket_read_ready(int sock)
   FD_ZERO(&read_fds);
   FD_SET(sock, &read_fds);
 
-  return wait_socket_ready(sock, &read_fds, 0);
+  return _wait_socket_ready(sock, &read_fds, 0);
 }
 
 
@@ -73,6 +73,7 @@ int accept_connection(int sock)
 
   if (set_nonblock(sock) != 0)
   {
+    puts("accept_connection: unable to set socket nonblocking");
     close(sock);
     return -2;
   }
@@ -127,7 +128,7 @@ int wait_socket_write_ready(int sock)
   FD_ZERO(&write_fds);
   FD_SET(sock, &write_fds);
 
-  return wait_socket_ready(sock, 0, &write_fds);
+  return _wait_socket_ready(sock, 0, &write_fds);
 }
 
 
@@ -143,23 +144,23 @@ int out(int sock, uint8_t* buf, int size)
 
   if (sent < 0)
   {
-    printf("out: socket (%d) error! %s\n", sock, strerror(errno));
+    //printf("out: socket (%d) error! %s\n", sock, strerror(errno));
     return -1;
   }
 
   if (sent == 0)
   {
-//    printf("out: remote socket disconnected!\n");     not really an error
+    //printf("out: remote socket disconnected!\n");     not really an error
     return -2;
   }
 
   if (sent != size)
   {
-    printf("out: sent buffer was not equal to size (sent %zu, prot size was %d)\n", sent, size);
+    //printf("out: sent buffer was not equal to size (sent %zu, prot size was %d)\n", sent, size);
     return -3;
   }
 
-//  printf("out: sent %d bytes\n", size);
+  //printf("out: sent %d bytes\n", size);
 
   //raise(SIGINT);
 
@@ -216,32 +217,20 @@ int get_protocol(int sock, union protocol* prot)//, const char* magic /* feed wi
 }
 
 
-int get_random_number(void* ptr, size_t size)
+FILE *random_dev_file;
+
+
+int get_random_number(void* ptr, size_t size) // init must be called before !
 {
-  int result = -1;
-  FILE *f = fopen("/dev/random", "r");
-
-  if (!f)
+  size_t fread_result = fread(ptr, size, 1, random_dev_file);
+  if (fread_result != 1)
   {
-    puts("get_random_number: cannot open /dev/random !");
-  }
-  else
-  {
-    size_t fread_result = fread(ptr, size, 1, f);
-    if (fread_result != 1)
-    {
-      puts("[SECURITY FAILURE!] get_random_number: could not read from /dev/random - abort!");
-      abort();
-    }
-    else
-    {
-      result = 0; // success
-    }
+    puts("[SECURITY FAILURE!] get_random_number: could not read from /dev/random - abort!");
+    abort();
+    return -1;
   }
 
-  fclose(f);
-
-  return result;
+  return 0; // success
 }
 
 
@@ -249,7 +238,7 @@ struct node* get_random_node(list_t* nodes_list)
 {
   if (nodes_list->count < 2)
   {
-    printf("get_random_node: not enough nodes in list!\n");
+    //printf("get_random_node: not enough nodes in list!\n");
     return 0;
   }
 
@@ -259,7 +248,7 @@ struct node* get_random_node(list_t* nodes_list)
 
   random = random % list_count(nodes_list);
 
-  printf("get_random_node: random number was %"PRIu16"\n", random);
+  //printf("get_random_node: random number was %"PRIu16"\n", random);
 
 
   list_entry_t* e = nodes_list->e;
@@ -287,7 +276,7 @@ struct node* get_random_node(list_t* nodes_list)
   char *ip = (char *)malloc(100); // FIXME: size? read man!
   memset(ip, 0, 100);
   get_ip_as_string(n->ip, ip);
-  printf("get_random_node: selected node #%"PRIu16" (%"PRIu16"): %s:%"PRIu16"\n", random, i, ip, n->node_port);
+  //printf("get_random_node: selected node #%"PRIu16" (%"PRIu16"): %s:%"PRIu16"\n", random, i, ip, n->node_port);
   free(ip);
 
   return n;
@@ -604,7 +593,7 @@ int get_node(int sock, union protocol* prot_in, struct node* node_out)
 
   struct in_addr temp_adr;
   temp_adr.s_addr = nd.data.ip;
-  printf("get_node: received node %s (%d,%d)\n", inet_ntoa(temp_adr), nd.data.node_port, nd.data.client_port);
+  //printf("get_node: received node %s (%d,%d)\n", inet_ntoa(temp_adr), nd.data.node_port, nd.data.client_port);
 
   return 0;
 }
@@ -662,7 +651,36 @@ void get_ip_as_string(ipv4 ip, char *str)
 }
 
 
-void init()
+int init()
 {
   pthread_mutex_init(&mutex_inet_ntoa, 0);
+
+  // init random number generator
+  random_dev_file = fopen("/dev/random", "r");
+
+  if (!random_dev_file)
+  {
+    puts("get_random_number: cannot open /dev/random !");
+    return -1;
+  }
+
+  // TODO: cleanup => fclose(random_dev_file);
+
+  return 0;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

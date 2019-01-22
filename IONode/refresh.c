@@ -20,7 +20,7 @@ void* thread_refresh(void* arg) // regets the node list
   {
     sleep(5);
 
-    puts("refresh: refreshing!");
+    //puts("refresh: refreshing!");
 
     pthread_mutex_lock(&mutex_shared);
 

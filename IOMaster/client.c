@@ -14,7 +14,7 @@
 #include <string.h>
 
 
-void handle_client_connection(int cli)
+void _handle_client_connection(int cli)
 {
   union protocol prot;
 
@@ -109,7 +109,7 @@ void* _thread_client_connection(void* arg /* socket fd */)
 
 //  printf("client: new connection! %d\n", cli);
 
-  handle_client_connection(cli);
+  _handle_client_connection(cli);
   close(cli);
 
   free(arg); // cli_ptr, previously malloced in main

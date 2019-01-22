@@ -54,6 +54,7 @@ int _list_remove(list_t* l, list_entry_t* e)
   l->count--;
   //free(e->val);
   free(e);
+
   return 0;
 }
 

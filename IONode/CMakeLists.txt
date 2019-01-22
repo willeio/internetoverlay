@@ -11,6 +11,8 @@ set (src
   refresh.c
   node.h
   node.c
+  select.h
+  select.c
 )
 
 add_executable (IONode ${src} main.c)

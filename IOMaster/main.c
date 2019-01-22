@@ -30,9 +30,13 @@ int main(int argc, char **argv)
 
   printf("<IOMaster>\n\n");
 
-#ifdef MinGW
+//#ifdef MinGW
   signal(SIGPIPE, SIG_IGN); // ignore sigpipes (because broken pipes do not harm this program's execution)
-#endif
+//#endif
+
+
+  if (init() < 0)
+    return -1;
 
 
   int svr = create_server(6453);

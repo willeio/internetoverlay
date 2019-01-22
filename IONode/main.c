@@ -7,6 +7,7 @@
 #include "node.h"
 #include "watcher.h"
 #include "refresh.h"
+#include "select.h"
 
 #include <IOLib/io.h>
 #include <IOLib/list.h>
@@ -24,6 +25,7 @@
 #include <pthread.h>
 #include <signal.h>
 #include <inttypes.h>
+
 
 
 
@@ -57,39 +59,30 @@ int main(int argc, char *argv[])
   (void)argc;
   (void)argv;
 
-  srand(time(NULL)); // TODO: use safe random numbers in whole project !
+  srand(time(NULL)); // FIXME: use safe random numbers in whole project !
   signal(SIGPIPE, SIG_IGN); // ignore sigpipes (because broken pipes do not harm this program's execution)
 
   printf("<IONode>\n\n");
 
-  init();
-
-  FILE *f = fopen("/dev/random", "r");
-
-  if (!f)
-  {
-    puts("cannot open /dev/random for random ports!");
-    return -1234;
-  }
+  if (init() < 0)
+    return -1;
 
   uint16_t node_port = 0;
   uint16_t client_port = 0;
 
   do
   {
-    fread(&node_port, sizeof(node_port), 1, f);
+    get_random_number(&node_port, sizeof(node_port));
   } while (node_port < 1024);
 
   printf("node_port: %"PRIu16"\n", node_port);
 
   do
   {
-    fread(&client_port, sizeof(client_port), 1, f);
+    get_random_number(&client_port, sizeof(client_port));
   } while (client_port == node_port || client_port < 1024);
 
   printf("client_port: %"PRIu16"\n", client_port);
-
-  fclose(f);
 
 
 
@@ -141,6 +134,14 @@ int main(int argc, char *argv[])
   {
     printf("could not start node thread\n");
     return -66;
+  }
+
+
+  pthread_t select_thread;
+  if (pthread_create(&select_thread, 0, thread_select, 0) != 0)
+  {
+    printf("could not start select thread\n");
+    return -50;
   }
 
 

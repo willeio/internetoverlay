@@ -1,8 +1,8 @@
 cmake_minimum_required (VERSION 2.6)
-project (InternetOverlay C)
+project (IONet C)
 
 set (IO_VER_MAIN 0)
-set (IO_VER_SUB  19)
+set (IO_VER_SUB  21)
 
 configure_file (
   "${PROJECT_SOURCE_DIR}/cfg.h.in"
@@ -38,4 +38,12 @@ option (BUILD_IO_CLIENT
 
 if (BUILD_IO_CLIENT)
   add_subdirectory(IOClient)
+endif()
+
+
+option (BUILD_IO_PROTOCOL
+  "Build IOProtocol" ON)
+
+if (BUILD_IO_PROTOCOL)
+  add_subdirectory(IOProtocol)
 endif()

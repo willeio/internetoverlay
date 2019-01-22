@@ -2,6 +2,7 @@
 
 // TODO: clients must send heartbeat, so that IONode does not disconnect / remove the connection !
 // TODO: how to create hops count on nb creation? can be manipulated to see which node creates which nb !!
+// TODO: increase FD_SETSIZE !!
 
 #include "list.h"
 
@@ -108,7 +109,8 @@ struct client_blob // storage
 {
   //uint16_t blob_len;
   //uint8_t* blob;
-  uint8_t blob[256];
+  char prot_magic[2]; // magic of the protocol inside this client_blob's buf
+  uint8_t blob[254];
 };
 
 union msg_client_blob // magic: CB  message from client to random node (and vise versa) (until it finally arrives to the destination node) - only send the encrypted version of it!
@@ -186,7 +188,7 @@ int send_node_blob(int sock, struct node_blob* nb_in);
 
 
 
-void init();
+int init();
 int receive(int sock, uint8_t *buf, int size);
 int out(int sock, uint8_t* buf, int size);
 struct node* get_random_node(list_t *nodes_list);
